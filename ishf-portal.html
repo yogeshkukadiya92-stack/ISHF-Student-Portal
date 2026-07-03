@@ -20,6 +20,11 @@
   --teal-dark:#166e6e;
   --teal-soft:#d6efef;
   --teal-ink:#0f5f5f;
+  --green-50:#eaf7ef;
+  --green-100:#d6efdf;
+  --green-800:#178a4c;
+  --green-900:#0f5f35;
+  --coral-dark:#a93131;
   --cream:#ece2d0;
   --cream-2:#f4ecdc;
   --ink:#2a2f33;
@@ -302,13 +307,16 @@ document.getElementById('yr').textContent=new Date().getFullYear();
    ========================================================= */
 
 const HAS_STORE = (typeof window!=='undefined' && window.storage && typeof window.storage.get==='function');
+const HAS_LOCAL_STORAGE = (typeof window!=='undefined' && window.localStorage);
 const _mem = {};
 async function storeGet(k){
   if(HAS_STORE){ try{const r=await window.storage.get(k); return r?r.value:null;}catch(e){return null;} }
+  if(HAS_LOCAL_STORAGE){ try{return window.localStorage.getItem(k);}catch(e){} }
   return _mem[k]??null;
 }
 async function storeSet(k,v){
   if(HAS_STORE){ try{await window.storage.set(k,v);}catch(e){} }
+  if(HAS_LOCAL_STORAGE){ try{window.localStorage.setItem(k,v);}catch(e){} }
   _mem[k]=v; return true;
 }
 
@@ -412,10 +420,10 @@ async function loadData(){
   const raw=await storeGet('ishf_data');
   if(raw){ try{DATA=JSON.parse(raw);}catch(e){DATA=defaultData();} }
   else { DATA=defaultData(); await saveData(); }
-  // backfill new fields onto older saved data
-  if(DATA && DATA.branding && !DATA.branding.logo){ DATA.branding.logo=defaultData().branding.logo; await saveData(); }
+  DATA=normalizeData(DATA);
+  await saveData();
 }
-async function saveData(){ await storeSet('ishf_data', JSON.stringify(DATA)); }
+async function saveData(){ DATA=normalizeData(DATA); await storeSet('ishf_data', JSON.stringify(DATA)); }
 
 /* ---------- captcha ---------- */
 function newCaptcha(){
@@ -432,9 +440,10 @@ function setRole(r){
   document.getElementById('loginErr').textContent='';
 }
 function refreshLoginHint(){
-  const h=document.getElementById('loginHint');
-  if(UI.loginRole==='staff'){ h.innerHTML='Demo Staff/Admin → ID: <b>'+DATA.staff.staffId+'</b> · Pass: <b>'+DATA.staff.password+'</b>'; }
-  else{ h.innerHTML='Demo Student → ID: <b>'+DATA.student.studentId+'</b> · Pass: <b>'+DATA.student.password+'</b>'; }
+  const secureHint=document.getElementById('loginHint');
+  const secureId=UI.loginRole==='staff' ? DATA.staff.staffId : DATA.student.studentId;
+  secureHint.innerHTML=(UI.loginRole==='staff'?'Staff/Admin':'Student')+' ID: <b>'+esc(secureId)+'</b> &middot; password is hidden for security.';
+  return;
 }
 function doLogin(){
   const u=document.getElementById('loginUser').value.trim();
@@ -469,16 +478,17 @@ function logout(){
 function applyBranding(){
   document.getElementById('loginName').textContent=DATA.branding.name;
   document.getElementById('loginTag').textContent=DATA.branding.org;
-  const lg=DATA.branding.logo;
-  document.getElementById('loginLogo').innerHTML = lg ? '<img src="'+lg+'" alt="logo">' : (DATA.branding.logoText||'IS');
-  document.getElementById('tbLogo').innerHTML    = lg ? '<img src="'+lg+'" alt="logo">' : (DATA.branding.logoText||'IS');
+  const lg=safeImageSrc(DATA.branding.logo);
+  document.getElementById('loginLogo').innerHTML = lg ? '<img src="'+esc(lg)+'" alt="logo">' : esc(DATA.branding.logoText||'IS');
+  document.getElementById('tbLogo').innerHTML    = lg ? '<img src="'+esc(lg)+'" alt="logo">' : esc(DATA.branding.logoText||'IS');
   document.getElementById('loginLogo').classList.toggle('has-img', !!lg);
   document.getElementById('tbLogo').classList.toggle('has-img', !!lg);
   setFavicon(lg);
-  document.getElementById('tbBrand').innerHTML=DATA.branding.short+'<small>'+DATA.branding.centre+'</small>';
+  document.getElementById('tbBrand').innerHTML=esc(DATA.branding.short)+'<small>'+esc(DATA.branding.centre)+'</small>';
 }
 function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); }
 function setFavicon(src){
+  src=safeImageSrc(src);
   if(!src) return;
   let l=document.querySelector("link[rel='icon']");
   if(!l){l=document.createElement('link');l.rel='icon';document.head.appendChild(l);}
@@ -487,6 +497,54 @@ function setFavicon(src){
 
 /* ---------- helpers ---------- */
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function jsArg(v){return esc(JSON.stringify(String(v??'')));}
+function safeUrl(url, fallback){
+  const raw=String(url||'').trim();
+  const fb=fallback===undefined ? '#' : fallback;
+  if(!raw) return fb;
+  if(raw==='#') return '#';
+  try{
+    const u=new URL(raw, window.location.href);
+    if(['http:','https:','mailto:','tel:'].includes(u.protocol)) return u.href;
+  }catch(e){}
+  return fb;
+}
+function safeImageSrc(src){
+  const raw=String(src||'').trim();
+  if(/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(raw)) return raw;
+  return safeUrl(raw,'');
+}
+function safeEmbedUrl(url){
+  const raw=String(url||'').trim();
+  if(!raw) return '';
+  const yt=raw.match(/(?:youtu\.be\/|v=)([\w-]{11})/);
+  if(yt) return 'https://www.youtube.com/embed/'+yt[1];
+  try{
+    const u=new URL(raw, window.location.href);
+    if(['http:','https:'].includes(u.protocol)) return u.href;
+  }catch(e){}
+  return '';
+}
+function normalizeData(input){
+  const base=defaultData();
+  const merge=(fallback,value)=>{
+    if(Array.isArray(fallback)) return Array.isArray(value) ? value : fallback;
+    if(fallback && typeof fallback==='object'){
+      const out={...fallback};
+      if(value && typeof value==='object' && !Array.isArray(value)){
+        Object.keys(out).forEach(k=>out[k]=merge(out[k],value[k]));
+      }
+      return out;
+    }
+    return value==null ? fallback : value;
+  };
+  const data=merge(base,input);
+  data.branding.logo=safeImageSrc(data.branding.logo);
+  data.introVideo.url=safeEmbedUrl(data.introVideo.url);
+  ['importantLinks','resources'].forEach(key=>data[key].forEach(x=>x.url=safeUrl(x.url)));
+  data.lectures.forEach(x=>{x.rec=safeUrl(x.rec,'');x.pdf=safeUrl(x.pdf,'');});
+  return data;
+}
 function rupee(n){return '₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function initials(n){return (n||'?').split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();}
 function toast(msg){
@@ -528,6 +586,7 @@ function studentSidebar(active){
 }
 
 function renderStudent(page){
+  if(!SESSION.role){ logout(); return; }
   CURRENT_PAGE=page;
   document.getElementById('sidebar').innerHTML=studentSidebar(page);
   document.getElementById('sidebar').classList.remove('open');
@@ -563,7 +622,7 @@ function pgDashboard(){
       </div></div>
 
       <div class="card"><div class="ch">Important Links</div><div class="cb">
-        ${DATA.importantLinks.map(l=>`<div style="padding:10px 0;border-bottom:1px dashed var(--line)"><a href="${esc(l.url)}">${esc(l.title)} →</a></div>`).join('')||'<div class="empty">No links yet.</div>'}
+        ${DATA.importantLinks.map(l=>`<div style="padding:10px 0;border-bottom:1px dashed var(--line)"><a href="${esc(safeUrl(l.url))}" rel="noopener noreferrer">${esc(l.title)} →</a></div>`).join('')||'<div class="empty">No links yet.</div>'}
       </div></div>
 
       <div class="card"><div class="ch">Programme Introduction</div><div class="cb">
@@ -573,9 +632,8 @@ function pgDashboard(){
 }
 function videoEmbed(url,title){
   if(!url) return `<div class="empty"><div class="big">🎬</div>${esc(title||'Video')}<div style="font-size:12px;margin-top:6px">Admin can add a video link in the Admin Panel.</div></div>`;
-  let embed=url;
-  const yt=url.match(/(?:youtu\.be\/|v=)([\w-]{11})/);
-  if(yt) embed='https://www.youtube.com/embed/'+yt[1];
+  let embed=safeEmbedUrl(url);
+  if(!embed) return `<div class="empty"><div class="big">🎬</div>Video link is not allowed.</div>`;
   return `<div style="position:relative;padding-top:56%;border-radius:10px;overflow:hidden;background:#000">
     <iframe src="${esc(embed)}" style="position:absolute;inset:0;width:100%;height:100%;border:0" allowfullscreen></iframe></div>
     <div style="font-size:12.5px;color:var(--muted);margin-top:8px">${esc(title||'')}</div>`;
@@ -639,7 +697,7 @@ function pgResources(){
   return `<div class="page-head"><h2>E-Resources & Newsletter</h2></div>
     <div class="grid cols-2">
       <div class="card"><div class="ch">Resources</div><div class="cb">
-        ${DATA.resources.map(r=>`<div class="lecture"><div class="lic">📄</div><div class="lmeta"><div class="lt">${esc(r.title)}</div><div class="ld">${esc(r.type)}</div></div><a class="btn sm" href="${esc(r.url)}" target="_blank">Open</a></div>`).join('')||'<div class="empty">No resources yet.</div>'}
+        ${DATA.resources.map(r=>`<div class="lecture"><div class="lic">📄</div><div class="lmeta"><div class="lt">${esc(r.title)}</div><div class="ld">${esc(r.type)}</div></div><a class="btn sm" href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener noreferrer">Open</a></div>`).join('')||'<div class="empty">No resources yet.</div>'}
       </div></div>
       <div class="card"><div class="ch">News</div><div class="cb">
         ${DATA.news.map(n=>`<div style="padding:10px 0;border-bottom:1px dashed var(--line)"><div style="font-weight:700;color:var(--green-900)">${esc(n.title)}</div><div style="font-size:11.5px;color:var(--muted)">${esc(n.date)}</div><div style="font-size:13px;margin-top:4px">${esc(n.body)}</div></div>`).join('')||'<div class="empty">No news.</div>'}
@@ -652,7 +710,7 @@ function pgCourses(){
   if(UI.course) return pgCourseDetail();
   return `<div class="page-head"><h2>My Courses</h2><p>Open a course, then pick a date to get the lecture recording and PDF.</p></div>
     <div class="course-grid">${DATA.courses.map(c=>`
-      <div class="course-card" onclick="openCourse('${esc(c.code)}')">
+      <div class="course-card" onclick="openCourse(${jsArg(c.code)})">
         <div class="cc-top"><div class="code">${esc(c.code)}</div><span class="tag">ISHF</span></div>
         <div class="cc-body"><h4>${esc(c.name)}</h4><div class="meta">${esc(c.sem)}</div></div>
       </div>`).join('')}</div>`;
@@ -664,8 +722,8 @@ function pgCourseDetail(){
   const all=DATA.lectures.filter(l=>l.course===c.code).sort((a,b)=>a.date.localeCompare(b.date));
   const shown = UI.courseDate ? all.filter(l=>l.date===UI.courseDate) : all;
   const lectureHTML = shown.length ? shown.map(l=>{
-    const recBtn=l.rec?`<a class="btn sm" href="${esc(l.rec)}" target="_blank">▶ Watch Recording</a>`:`<span class="badge warn">Recording soon</span>`;
-    const pdfBtn=l.pdf?`<a class="btn sm ghost" href="${esc(l.pdf)}" target="_blank">⬇ PDF</a>`:`<span class="badge info">No PDF</span>`;
+    const recBtn=l.rec?`<a class="btn sm" href="${esc(safeUrl(l.rec,''))}" target="_blank" rel="noopener noreferrer">▶ Watch Recording</a>`:`<span class="badge warn">Recording soon</span>`;
+    const pdfBtn=l.pdf?`<a class="btn sm ghost" href="${esc(safeUrl(l.pdf,''))}" target="_blank" rel="noopener noreferrer">⬇ PDF</a>`:`<span class="badge info">No PDF</span>`;
     return `<div class="lecture"><div class="lic">🎥</div>
       <div class="lmeta"><div class="lt">${esc(l.title)}</div><div class="ld">📅 ${fmtDate(l.date)}</div></div>
       <div class="lacts">${recBtn}${pdfBtn}</div></div>`;
@@ -790,6 +848,7 @@ function adminSidebar(active){
     <nav class="nav admin-side">${ADMIN_NAV.map(n=>`<a class="${n[0]===active?'active':''}" onclick="renderAdmin('${n[0]}')"><span class="ni">${n[1]}</span>${n[2]}</a>`).join('')}</nav>`;
 }
 function renderAdmin(tab){
+  if(SESSION.role!=='staff'){ logout(); return; }
   UI.adminTab=tab||UI.adminTab||'dashboard';
   document.getElementById('sidebar').innerHTML=adminSidebar(UI.adminTab);
   document.getElementById('sidebar').classList.remove('open');
@@ -853,7 +912,7 @@ function adBranding(){
         <div>
           <button class="btn sm" onclick="document.getElementById('logoFile').click()">Upload logo (PNG / SVG)</button>
           ${b.logo?'<button class="btn sm danger" style="margin-left:8px" onclick="clearLogo()">Remove</button>':''}
-          <input id="logoFile" type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" class="hide" onchange="uploadLogo(this)">
+          <input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp" class="hide" onchange="uploadLogo(this)">
           <div style="font-size:12px;color:var(--muted);margin-top:7px;max-width:360px">For a crisp logo, upload a large transparent PNG (512×512+) or an SVG. The logo shows on the login page, top bar and browser tab.</div>
         </div>
       </div>
@@ -923,6 +982,7 @@ async function saveStudent(){
 }
 async function uploadPhoto(inp){
   const f=inp.files[0]; if(!f)return;
+  if(!/^image\/(png|jpeg|jpg|webp)$/i.test(f.type) || f.size>1572864){toast('Use PNG/JPG/WebP under 1.5 MB.');return;}
   const rd=new FileReader();
   rd.onload=async()=>{DATA.student.photo=rd.result;await saveData();renderAdmin('student');toast('Photo updated.');};
   rd.readAsDataURL(f);
@@ -931,6 +991,7 @@ async function clearPhoto(){DATA.student.photo='';await saveData();renderAdmin('
 
 async function uploadLogo(inp){
   const f=inp.files[0]; if(!f)return;
+  if(!/^image\/(png|jpeg|jpg|webp)$/i.test(f.type) || f.size>1572864){toast('Use PNG/JPG/WebP under 1.5 MB.');return;}
   const rd=new FileReader();
   rd.onload=async()=>{DATA.branding.logo=rd.result;await saveData();applyBranding();renderAdmin('branding');toast('Logo updated.');};
   rd.readAsDataURL(f);
@@ -1153,7 +1214,8 @@ function exportData(){
 }
 function importData(inp){
   const f=inp.files[0];if(!f)return;const rd=new FileReader();
-  rd.onload=async()=>{try{DATA=JSON.parse(rd.result);await saveData();applyBranding();renderAdmin('dashboard');toast('Data imported.');}catch(e){toast('Invalid file.');}};
+  if(f.size>1048576){toast('Import file is too large.');inp.value='';return;}
+  rd.onload=async()=>{try{DATA=normalizeData(JSON.parse(rd.result));await saveData();applyBranding();renderAdmin('dashboard');toast('Data imported safely.');}catch(e){toast('Invalid file.');}finally{inp.value='';}};
   rd.readAsText(f);
 }
 async function resetData(){if(confirm('Reset everything back to sample data?')){DATA=defaultData();await saveData();applyBranding();renderAdmin('dashboard');toast('Reset done.');}}
