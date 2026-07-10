@@ -3,11 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ISHF Student Portal</title>
+<title>Student Portal</title>
 <style>
-/* ===== ISHF — International School For Health & Fitness =====
-   Professional institutional ERP look: maroon chrome, gold student panel,
-   cyan card headers, cream top bar, teal action buttons. ===== */
+/* ===== White-label portal theme ===== */
 :root{
   --maroon-900:#5e0f18;
   --maroon-800:#7a1623;
@@ -281,8 +279,8 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
     <div class="accent"></div>
     <div class="login-top">
       <div class="brand-mark" id="loginLogo">IS</div>
-      <h1 id="loginName">ISHF Student Portal</h1>
-      <p id="loginTag">International School For Health &amp; Fitness</p>
+      <h1 id="loginName">Student Portal</h1>
+      <p id="loginTag">Organization Portal</p>
     </div>
     <div class="login-body">
       <div class="role-tabs">
@@ -309,8 +307,8 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
       <div class="login-hint" id="loginHint"></div>
     </div>
     <div class="login-foot">
-      <span style="color:var(--muted)">© <span id="yr"></span> ISHF</span>
-      <a href="#" onclick="alert('Please contact the admin office to reset your password.');return false;">Forgot Password?</a>
+      <span style="color:var(--muted)">© <span id="yr"></span> Portal</span>
+      <a href="#" onclick="alert('Please contact your administrator to reset your password.');return false;">Forgot Password?</a>
     </div>
   </div>
 </div>
@@ -320,7 +318,7 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
   <div class="topbar">
     <button class="menu-btn" onclick="toggleSidebar()">☰</button>
     <div class="tb-logo" id="tbLogo">IS</div>
-    <div class="tb-title" id="tbBrand">ISHF<small>Centre for Online Learning</small></div>
+    <div class="tb-title" id="tbBrand">Portal<small>Learning & Operations</small></div>
     <div class="spacer"></div>
     <span class="role-pill" id="tbRole">STUDENT</span>
     <button class="tb-logout" onclick="logout()">Logout ⏻</button>
@@ -330,7 +328,7 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
     <main class="main" id="view"></main>
   </div>
   <div class="footer-bar">
-    <span>ISHF — Software Development Cell</span>
+    <span>White-label Student Portal</span>
     <span id="activeUsers">Active Users: 1307</span>
   </div>
 </div>
@@ -342,7 +340,7 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
 document.getElementById('yr').textContent=new Date().getFullYear();
 
 /* =========================================================
-   ISHF PORTAL — data, storage, auth, render
+   STUDENT PORTAL — data, storage, auth, render
    Persistence: window.storage when available (Claude artifact),
    otherwise an in-memory fallback so it still runs anywhere.
    ========================================================= */
@@ -455,8 +453,9 @@ function defaultData(){return emptyPortalData({
 
 function emptyPortalData(data){
   data.meta={seedVersion:'empty-v1'};
-  data.hero={eyebrow:"ISHF",title:"Welcome to ISHF Student Portal",text:"Use the admin panel to add student details, courses, lectures, payments and portal content.",chips:["Ready for Setup"]};
-  data.introVideo={title:"",url:""};
+  data.branding={name:"Student Portal",short:"PORTAL",org:"Organization Name",logoText:"SP",logo:"",centre:"Learning & Operations"};
+  data.hero={eyebrow:"White-label Portal",title:"Welcome to Your Student Portal",text:"Use the admin panel to add student details, courses, lectures, payments and portal content.",chips:["Ready for Setup"]};
+  data.introVideo={title:"Welcome to Your Portal",url:""};
   data.student={
     studentId:"", password:"",
     name:"", prn:"",
@@ -466,8 +465,9 @@ function emptyPortalData(data){
     admissionDate:"", specialization:"",
     bloodGroup:"", abcId:"", debUnique:"",
     address:"", state:"", city:"", pincode:"",
-    mentorName:"", mentorEmail:""
+    mentorName:"", mentorPhone:""
   };
+  data.staff={staffId:"admin",password:"admin123",name:"Portal Administrator"};
   data.importantLinks=[];
   data.formVerification={
     registrationDate:"", formNo:"",
@@ -625,6 +625,7 @@ function normalizeData(input){
     return value==null ? fallback : value;
   };
   const data=merge(base,input);
+  data.student.mentorPhone = data.student.mentorPhone || data.student.mentorEmail || '';
   data.branding.logo=safeImageSrc(data.branding.logo);
   data.introVideo.url=safeEmbedUrl(data.introVideo.url);
   ['importantLinks','resources'].forEach(key=>data[key].forEach(x=>x.url=safeUrl(x.url)));
@@ -719,7 +720,7 @@ function pgDashboard(){
         ${DATA.importantLinks.map(l=>`<div style="padding:10px 0;border-bottom:1px dashed var(--line)"><a href="${esc(safeUrl(l.url))}" rel="noopener noreferrer">${esc(l.title)} →</a></div>`).join('')||'<div class="empty">No links yet.</div>'}
       </div></div>
 
-      <div class="card"><div class="ch">Programme Introduction</div><div class="cb">
+      <div class="card"><div class="ch">Portal Introduction</div><div class="cb">
         ${videoEmbed(DATA.introVideo.url, DATA.introVideo.title)}
       </div></div>
     </div>`;
@@ -737,7 +738,7 @@ function pgProfile(){
   const s=DATA.student;
   const av=s.photo?`<img class="profile-photo" src="${esc(s.photo)}">`:`<div class="profile-photo" style="display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;color:var(--green-800)">${initials(s.name)}</div>`;
   const ro=(l,v)=>`<div class="field-block"><label>${l}</label><div class="ro">${esc(v||'-')}</div></div>`;
-  return `<div class="page-head"><h2>My Profile</h2></div>
+  return `<div class="page-head"><h2>My Profile</h2><p>You can update your own personal details here. Mentor details can only be changed by admin.</p></div>
     <div class="card"><div class="cb">
       <div style="display:flex;gap:24px;flex-wrap:wrap">
         <div>${av}
@@ -747,6 +748,7 @@ function pgProfile(){
           </div>
         </div>
         <div style="flex:1;min-width:280px">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn sm coral" onclick="editStudentProfile()">Edit My Details</button></div>
           <div class="grid cols-3">${ro('Student Name',s.name)}${ro('ERP Student ID',s.studentId)}${ro('PRN',s.prn)}
           ${ro('Program',s.program)}${ro('Batch',s.batch)}${ro('Email ID',s.email)}</div>
         </div>
@@ -762,8 +764,32 @@ function pgProfile(){
       </div>
     </div></div>
     <div class="card" style="margin-top:16px"><div class="ch">Mentor Details</div><div class="cb">
-      <div class="grid cols-2">${ro('Name',s.mentorName)}${ro('Email ID',s.mentorEmail)}</div>
+      <div class="grid cols-2">${ro('Name',s.mentorName)}${ro('Number',s.mentorPhone)}</div>
     </div></div>`;
+}
+function editStudentProfile(){
+  const s=DATA.student;
+  const body=`<div class="grid cols-2">
+    ${fieldInput('sp_name','Full Name',s.name)}
+    ${fieldInput('sp_email','Email',s.email,'email')}
+    ${fieldInput('sp_mobile','Mobile Number',s.mobile)}
+    ${fieldInput('sp_gender','Gender',s.gender)}
+    ${fieldInput('sp_dob','Date of Birth',s.dob)}
+    ${fieldInput('sp_specialization','Specialization',s.specialization)}
+    ${fieldInput('sp_bloodGroup','Blood Group',s.bloodGroup)}
+    ${fieldInput('sp_state','State',s.state)}
+    ${fieldInput('sp_city','City',s.city)}
+    ${fieldInput('sp_pincode','Pincode',s.pincode)}
+    <div style="grid-column:1/-1">${fieldInput('sp_address','Current Address',s.address,'textarea')}</div>
+  </div>`;
+  openForm('Edit My Details',body,async()=>{
+    ['name','email','mobile','gender','dob','specialization','bloodGroup','state','city','pincode','address']
+      .forEach(id=>DATA.student[id]=readVal('sp_'+id));
+    await saveData();
+    renderStudent('profile');
+    toast('Profile updated.');
+    return true;
+  });
 }
 
 function pgVerification(){
@@ -805,7 +831,7 @@ function pgCourses(){
   return `<div class="page-head"><h2>My Courses</h2><p>Open a course, then pick a date to get the lecture recording and PDF.</p></div>
     <div class="course-grid">${DATA.courses.map(c=>`
       <div class="course-card" onclick="openCourse(${jsArg(c.code)})">
-        <div class="cc-top"><div class="code">${esc(c.code)}</div><span class="tag">ISHF</span></div>
+        <div class="cc-top"><div class="code">${esc(c.code)}</div><span class="tag">PORTAL</span></div>
         <div class="cc-body"><h4>${esc(c.name)}</h4><div class="meta">${esc(c.sem)}</div></div>
       </div>`).join('')}</div>`;
 }
@@ -1008,7 +1034,7 @@ function randomPassword(len){
 }
 function generateStudentLogin(){
   const sid='STU'+randomDigits(7);
-  const spw='ISHF@'+randomPassword(6);
+  const spw='Portal@'+randomPassword(6);
   const sidEl=document.getElementById('lg_sid');
   const spwEl=document.getElementById('lg_spw');
   if(sidEl) sidEl.value=sid;
@@ -1086,12 +1112,12 @@ function adStudent(){
       ${F('bloodGroup','Blood Group')}
     </div></div></div>
     <div class="card" style="margin-top:16px"><div class="ch">Mentor</div><div class="cb"><div class="grid cols-2">
-      ${F('mentorName','Mentor Name')}${F('mentorEmail','Mentor Email','email')}
+      ${F('mentorName','Mentor Name')}${F('mentorPhone','Mentor Number')}
     </div></div></div>
     <div style="margin-top:16px"><button class="btn coral" onclick="saveStudent()">Save Student Details</button></div>`;
 }
 async function saveStudent(){
-  const ids=['name','studentId','prn','program','batch','email','specialization','admissionDate','abcId','debUnique','address','state','city','pincode','mobile','gender','dob','bloodGroup','mentorName','mentorEmail'];
+  const ids=['name','studentId','prn','program','batch','email','specialization','admissionDate','abcId','debUnique','address','state','city','pincode','mobile','gender','dob','bloodGroup','mentorName','mentorPhone'];
   ids.forEach(id=>DATA.student[id]=readVal('s_'+id));
   await saveData(); toast('Student details saved.');
 }
@@ -1328,7 +1354,7 @@ function openForm(title,bodyHtml,onSave){
 /* ---- export / import / reset ---- */
 function exportData(){
   const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ishf-portal-data.json';a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='portal-data.json';a.click();
   toast('Data exported.');
 }
 function importData(inp){

@@ -1,7 +1,7 @@
-# ISHF Student Portal Brain
+# Student Portal Brain
 
 ## Project Summary
-ISHF Student Portal is a single-file frontend web app in `ishf-portal.html`. It works as a student portal plus admin panel for the International School For Health & Fitness. There is no separate server backend in this project yet; the app stores editable portal data in the browser using `window.storage` when available, then `localStorage`, then an in-memory fallback.
+Student Portal is a single-file frontend web app in `ishf-portal.html`. It works as a white-label student portal plus admin panel for any institute, academy, coaching center, or internal training team. There is no separate server backend in this project yet; the app stores editable portal data in the browser using `window.storage` when available, then `localStorage`, then an in-memory fallback.
 
 ## How To Run
 1. Open the project folder.
@@ -25,11 +25,9 @@ Coolify should deploy it as a Dockerfile-based app:
 If Coolify shows "Welcome to nginx!", it is serving the default nginx image instead of this app's web root. Redeploy after pulling the latest repo commit so `Dockerfile`, `nginx.conf`, `index.html`, and `ishf-portal.html` are included.
 
 ## Demo Logins
-The default login IDs are visible on the login page, but passwords are intentionally hidden in the UI for safety.
-
 Student:
-- ID: `251104569`
-- Password: `student123`
+- No default student ID/password is prefilled anymore.
+- Generate student credentials from the admin panel in `Login & Passwords`.
 
 Admin/Staff:
 - ID: `admin`
@@ -79,7 +77,7 @@ Important top-level keys:
 - `loadData()` reads `ishf_data`.
 - `normalizeData()` merges imported/saved data with default schema and sanitizes URLs/images.
 - `saveData()` normalizes and writes JSON back to storage.
-- Export downloads current `DATA` as `ishf-portal-data.json`.
+- Export downloads current `DATA` as `portal-data.json`.
 - Import accepts JSON under 1 MB, normalizes it, and rejects invalid JSON.
 
 ## Security Notes
@@ -118,7 +116,7 @@ Recommended real backend upgrades:
 Tested via local server on `http://127.0.0.1:4173/ishf-portal.html`.
 
 Verified:
-- Page loads with title `ISHF Student Portal`.
+- Page loads with title `Student Portal`.
 - Login hint hides passwords.
 - Student login works with default credentials and captcha.
 - Student dashboard renders without console errors.
