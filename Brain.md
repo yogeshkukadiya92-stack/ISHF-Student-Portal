@@ -14,6 +14,16 @@ ISHF Student Portal is a single-file frontend web app in `ishf-portal.html`. It 
    http://127.0.0.1:4173/ishf-portal.html
    ```
 
+## Coolify Deployment
+This repo includes a `Dockerfile` and `nginx.conf` for Coolify.
+
+Coolify should deploy it as a Dockerfile-based app:
+- Build pack: Dockerfile
+- Port: `80`
+- Root URL `/` serves `ishf-portal.html`
+
+If Coolify shows "Welcome to nginx!", it is serving the default nginx image instead of this app's web root. Redeploy after pulling the latest repo commit so `Dockerfile`, `nginx.conf`, `index.html`, and `ishf-portal.html` are included.
+
 ## Demo Logins
 The default login IDs are visible on the login page, but passwords are intentionally hidden in the UI for safety.
 
