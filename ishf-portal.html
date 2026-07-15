@@ -290,7 +290,7 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
       <div class="err" id="loginErr"></div>
       <div class="field">
         <input id="loginUser" placeholder="Student ID / Staff ID" autocomplete="username">
-        <span class="ic">✉️</span>
+        <span class="ic">@</span>
       </div>
       <div class="field">
         <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
@@ -321,7 +321,7 @@ tbody tr:hover{background:#fafbfb;transform:translateX(2px)}
     <div class="tb-title" id="tbBrand">Portal<small>Learning & Operations</small></div>
     <div class="spacer"></div>
     <span class="role-pill" id="tbRole">STUDENT</span>
-    <button class="tb-logout" onclick="logout()">Logout ⏻</button>
+    <button class="tb-logout" onclick="logout()">Logout</button>
   </div>
   <div class="layout">
     <aside class="sidebar" id="sidebar"></aside>
@@ -380,6 +380,8 @@ function defaultData(){return emptyPortalData({
     state:"Gujarat", city:"Surat", pincode:"394210",
     mentorName:"Ms. Ashwini Rajdev", mentorEmail:"mentor@ishf.edu.in"
   },
+  batches:[{name:"DHFS - July 2025",code:"DHFS25"}],
+  students:[],
   staff:{ staffId:"admin", password:"admin123", name:"ISHF Administrator" },
   importantLinks:[
     {title:"How to create a study schedule that actually helps you", url:"#"},
@@ -467,6 +469,8 @@ function emptyPortalData(data){
     address:"", state:"", city:"", pincode:"",
     mentorName:"", mentorPhone:""
   };
+  data.batches=[];
+  data.students=[];
   data.staff={staffId:"admin",password:"admin123",name:"Portal Administrator"};
   data.importantLinks=[];
   data.formVerification={
@@ -491,8 +495,8 @@ function emptyPortalData(data){
 }
 
 let DATA=null;
-let SESSION={role:null}; // 'student' | 'staff'
-let UI={loginRole:'student', course:null, courseDate:'', adminTab:'dashboard'};
+let SESSION={role:null,studentIndex:-1}; // 'student' | 'staff'
+let UI={loginRole:'student', course:null, courseDate:'', adminTab:'dashboard', adminStudentIndex:0, batchFilter:''};
 
 function shouldClearLegacyDemoData(data){
   if(!data || !data.student) return false;
@@ -541,7 +545,9 @@ function doLogin(){
   if(UI.loginRole==='staff'){
     if(u===DATA.staff.staffId && p===DATA.staff.password){ enterApp('staff'); return; }
   }else{
-    if(u===DATA.student.studentId && p===DATA.student.password){ enterApp('student'); return; }
+    const idx=DATA.students.findIndex(s=>s.studentId===u && s.password===p);
+    if(idx>=0){ DATA.student={...DATA.students[idx]}; SESSION.studentIndex=idx; enterApp('student'); return; }
+    if(u===DATA.student.studentId && p===DATA.student.password){ SESSION.studentIndex=0; enterApp('student'); return; }
   }
   err.textContent='Invalid ID or password. Please try again.'; newCaptcha();
 }
@@ -626,11 +632,38 @@ function normalizeData(input){
   };
   const data=merge(base,input);
   data.student.mentorPhone = data.student.mentorPhone || data.student.mentorEmail || '';
+  if(!Array.isArray(data.batches)) data.batches=[];
+  if(!Array.isArray(data.students)) data.students=[];
+  if(data.student && (data.student.name || data.student.studentId) && !data.students.length) data.students=[{...data.student}];
+  data.students=data.students.map(s=>({...base.student,...s,mentorPhone:s.mentorPhone||s.mentorEmail||''}));
+  const seenBatch=new Set();
+  data.batches=[...data.batches,{name:data.student.batch,code:batchCode(data.student.batch)},...data.students.map(s=>({name:s.batch,code:batchCode(s.batch)}))]
+    .filter(b=>b && b.name)
+    .map(b=>({name:String(b.name).trim(),code:String(b.code||batchCode(b.name)).trim().toUpperCase()}))
+    .filter(b=>{const k=b.name.toLowerCase(); if(seenBatch.has(k)) return false; seenBatch.add(k); return true;})
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  if(data.students.length){
+    const active=Math.max(0,Math.min(SESSION.studentIndex>=0?SESSION.studentIndex:UI.adminStudentIndex||0,data.students.length-1));
+    data.student={...data.students[active]};
+  }
   data.branding.logo=safeImageSrc(data.branding.logo);
   data.introVideo.url=safeEmbedUrl(data.introVideo.url);
   ['importantLinks','resources'].forEach(key=>data[key].forEach(x=>x.url=safeUrl(x.url)));
   data.lectures.forEach(x=>{x.rec=safeUrl(x.rec,'');x.pdf=safeUrl(x.pdf,'');});
   return data;
+}
+function batchCode(name){
+  const words=String(name||'BATCH').toUpperCase().match(/[A-Z0-9]+/g)||['BATCH'];
+  return words.map(w=>w[0]).join('').slice(0,5)+(new Date().getFullYear()%100);
+}
+function saveActiveStudent(){
+  if(!DATA.students.length) DATA.students=[{...DATA.student}];
+  const i=Math.max(0,Math.min(UI.adminStudentIndex||0,DATA.students.length-1));
+  DATA.students[i]={...DATA.student};
+}
+function batchOptions(selected,allowAll){
+  const opts=DATA.batches.map(b=>`<option value="${esc(b.name)}" ${b.name===selected?'selected':''}>${esc(b.name)}</option>`).join('');
+  return `${allowAll?`<option value="" ${!selected?'selected':''}>All Batches</option>`:''}${opts}`;
 }
 function rupee(n){return '₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function initials(n){return (n||'?').split(' ').filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();}
@@ -655,13 +688,13 @@ function animateView(){
 <script id="viewsScript">
 /* ================= STUDENT PORTAL ================= */
 const STUDENT_NAV=[
-  ['dashboard','🏠','Dashboard'],
+  ['dashboard','H','Dashboard'],
   ['profile','👤','My Profile'],
   ['verification','✅','Form Verification Status'],
   ['resources','📰','E-Resources & Newsletter'],
   ['courses','📚','My Courses'],
   ['payments','💳','Payments'],
-  ['exams','📝','Examination'],
+  ['exams','E','Examination'],
   ['assignments','📤','Assignments'],
   ['holidays','📅','Holiday List'],
   ['support','🎫','Student Support Ticket']
@@ -785,6 +818,7 @@ function editStudentProfile(){
   openForm('Edit My Details',body,async()=>{
     ['name','email','mobile','gender','dob','specialization','bloodGroup','state','city','pincode','address']
       .forEach(id=>DATA.student[id]=readVal('sp_'+id));
+    if(SESSION.studentIndex>=0 && DATA.students[SESSION.studentIndex]) DATA.students[SESSION.studentIndex]={...DATA.students[SESSION.studentIndex],...DATA.student};
     await saveData();
     renderStudent('profile');
     toast('Profile updated.');
@@ -850,7 +884,7 @@ function pgCourseDetail(){
   }).join('') : `<div class="empty"><div class="big">📭</div>No lecture found for the selected date.</div>`;
   return `<div class="page-head"><h2>${esc(c.name)}</h2><p>${esc(c.code)} · ${esc(c.sem||'')}</p></div>
     <div class="toolbar">
-      <button class="btn sm ghost" onclick="backToCourses()">← All Courses</button>
+      <button class="btn sm ghost" onclick="backToCourses()">Back to All Courses</button>
       <div class="field-block" style="margin:0"><label>Select Date</label>
         <input type="date" value="${esc(UI.courseDate)}" onchange="UI.courseDate=this.value;renderStudent('courses')"></div>
       ${UI.courseDate?`<button class="btn sm" onclick="UI.courseDate='';renderStudent('courses')">Clear date</button>`:''}
@@ -945,13 +979,14 @@ async function raiseTicket(){
 const ADMIN_NAV=[
   ['dashboard','📊','Dashboard'],
   ['branding','🎨','Branding & Banner'],
+  ['batches','B','Batches'],
   ['student','👤','Student Details'],
   ['logins','🔑','Login & Passwords'],
   ['courses','📚','Courses'],
   ['lectures','🎥','Lectures (Rec + PDF)'],
   ['fees','💳','Fees & Payments'],
   ['assignments','📤','Assignments'],
-  ['exams','📝','Examinations'],
+  ['exams','E','Examinations'],
   ['holidays','📅','Holidays'],
   ['news','📰','News & Resources'],
   ['links','🔗','Important Links'],
@@ -961,7 +996,7 @@ const ADMIN_NAV=[
 
 function adminSidebar(active){
   return `<div class="side-user">
-      <div class="av">⚙️</div>
+      <div class="av">AD</div>
       <div class="nm">${esc(DATA.staff.name)}</div>
       <div class="sub">Admin Panel</div>
     </div>
@@ -974,7 +1009,7 @@ function renderAdmin(tab){
   document.getElementById('sidebar').classList.remove('open');
   const v=document.getElementById('view');
   v.innerHTML=({
-    dashboard:adDashboard, branding:adBranding, student:adStudent, logins:adLogins,
+    dashboard:adDashboard, branding:adBranding, batches:adBatches, student:adStudent, logins:adLogins,
     courses:adCourses, lectures:adLectures, fees:adFees, assignments:adAssignments,
     exams:adExams, holidays:adHolidays, news:adNews, links:adLinks,
     verification:adVerification, tickets:adTickets
@@ -1033,13 +1068,40 @@ function randomPassword(len){
   return out;
 }
 function generateStudentLogin(){
-  const sid='STU'+randomDigits(7);
+  const batchName=readVal('lg_batch') || DATA.student.batch || (DATA.batches[0]&&DATA.batches[0].name) || '';
+  const batch=DATA.batches.find(b=>b.name===batchName);
+  const sid=(batch&&batch.code?batch.code:'STU')+randomDigits(6);
   const spw='Portal@'+randomPassword(6);
   const sidEl=document.getElementById('lg_sid');
   const spwEl=document.getElementById('lg_spw');
   if(sidEl) sidEl.value=sid;
   if(spwEl) spwEl.value=spw;
-  toast('New student ID and password generated. Click Save Logins to apply.');
+  toast('Auto ID and password generated. Click Assign ID & Password to save.');
+}
+
+function adBatches(){
+  const rows=`<table><thead><tr><th>Batch Name</th><th>ID Prefix</th><th>Students</th><th>Actions</th></tr></thead><tbody>
+    ${DATA.batches.map((b,i)=>`<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.code)}</td><td>${DATA.students.filter(s=>s.batch===b.name).length}</td><td>${actBtns(`editBatch(${i})`,`delBatch(${i})`)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No batches yet.</td></tr>'}
+  </tbody></table>`;
+  return collSection('Batches','Add batches first, then assign students to a batch. Student IDs can use the batch prefix automatically.','Add Batch','editBatch(-1)',rows);
+}
+function editBatch(i){
+  const b=i>=0?DATA.batches[i]:{name:'',code:''};
+  openForm(i>=0?'Edit Batch':'Add Batch',
+    fieldInput('bt_name','Batch Name',b.name)+fieldInput('bt_code','Student ID Prefix',b.code||batchCode(b.name)),
+    async()=>{
+      const old=i>=0?DATA.batches[i].name:'';
+      const o={name:readVal('bt_name').trim(),code:(readVal('bt_code')||batchCode(readVal('bt_name'))).trim().toUpperCase()};
+      if(!o.name){toast('Batch name required');return false;}
+      if(i>=0) DATA.batches[i]=o; else DATA.batches.push(o);
+      if(old && old!==o.name) DATA.students.forEach(s=>{if(s.batch===old)s.batch=o.name;});
+      await saveData();renderAdmin('batches');toast('Batch saved.');return true;
+    });
+}
+async function delBatch(i){
+  const b=DATA.batches[i];
+  if(DATA.students.some(s=>s.batch===b.name)){toast('Move students to another batch before deleting.');return;}
+  if(confirm('Delete this batch?')){DATA.batches.splice(i,1);await saveData();renderAdmin('batches');toast('Batch deleted.');}
 }
 
 function adBranding(){
@@ -1086,9 +1148,23 @@ async function saveBranding(){
 }
 
 function adStudent(){
-  const s=DATA.student;
+  if(!DATA.students.length) DATA.students=[{...DATA.student}];
+  const filtered=DATA.students.map((s,i)=>({...s,_i:i})).filter(s=>!UI.batchFilter || s.batch===UI.batchFilter);
+  if(UI.adminStudentIndex>=DATA.students.length) UI.adminStudentIndex=0;
+  const s=DATA.students[UI.adminStudentIndex]||DATA.student;
+  DATA.student={...s};
   const F=(id,l,t)=>fieldInput('s_'+id,l,s[id]||'',t);
   return `<div class="page-head"><h2>Student Details</h2><p>These fields appear on Dashboard, Profile and Form Verification.</p></div>
+    <div class="card"><div class="ch">Arrange Students By Batch</div><div class="cb">
+      <div class="toolbar">
+        <div class="field-block"><label>Batch Filter</label><select onchange="UI.batchFilter=this.value;renderAdmin('student')">${batchOptions(UI.batchFilter,true)}</select></div>
+        <div class="field-block"><label>Select Student</label><select onchange="UI.adminStudentIndex=+this.value;renderAdmin('student')">
+          ${filtered.map(st=>`<option value="${st._i}" ${st._i===UI.adminStudentIndex?'selected':''}>${esc(st.name||st.studentId||'New Student')} - ${esc(st.batch||'No Batch')}</option>`).join('')||'<option>No students in this batch</option>'}
+        </select></div>
+        <button class="btn sm" onclick="addStudent()">Add Student</button>
+        <button class="btn sm ghost" onclick="renderAdmin('batches')">Add / Manage Batches</button>
+      </div>
+    </div></div>
     <div class="card"><div class="ch">Photo</div><div class="cb">
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
         ${s.photo?`<img class="profile-photo" src="${esc(s.photo)}">`:`<div class="profile-photo" style="display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:800;color:var(--green-800)">${initials(s.name)}</div>`}
@@ -1100,7 +1176,7 @@ function adStudent(){
     </div></div>
     <div class="card" style="margin-top:16px"><div class="ch">Academic</div><div class="cb"><div class="grid cols-3">
       ${F('name','Full Name')}${F('studentId','Student ID')}${F('prn','PRN')}
-      ${F('program','Program')}${F('batch','Batch')}${F('email','Email','email')}
+      ${F('program','Program')}<div class="field-block"><label>Batch</label><select id="s_batch">${batchOptions(s.batch,false)}</select></div>${F('email','Email','email')}
       ${F('specialization','Specialization')}${F('admissionDate','Date of Admission')}${F('abcId','ABC ID')}
       ${F('debUnique','DEB Unique ID')}
     </div></div></div>
@@ -1116,19 +1192,26 @@ function adStudent(){
     </div></div></div>
     <div style="margin-top:16px"><button class="btn coral" onclick="saveStudent()">Save Student Details</button></div>`;
 }
+async function addStudent(){
+  const batch=UI.batchFilter || (DATA.batches[0]&&DATA.batches[0].name) || '';
+  DATA.students.push({...DATA.student,name:'',studentId:'',password:'',prn:'',batch});
+  UI.adminStudentIndex=DATA.students.length-1;
+  await saveData(); renderAdmin('student'); toast('New student added.');
+}
 async function saveStudent(){
   const ids=['name','studentId','prn','program','batch','email','specialization','admissionDate','abcId','debUnique','address','state','city','pincode','mobile','gender','dob','bloodGroup','mentorName','mentorPhone'];
   ids.forEach(id=>DATA.student[id]=readVal('s_'+id));
+  saveActiveStudent();
   await saveData(); toast('Student details saved.');
 }
 async function uploadPhoto(inp){
   const f=inp.files[0]; if(!f)return;
   if(!/^image\/(png|jpeg|jpg|webp)$/i.test(f.type) || f.size>1572864){toast('Use PNG/JPG/WebP under 1.5 MB.');return;}
   const rd=new FileReader();
-  rd.onload=async()=>{DATA.student.photo=rd.result;await saveData();renderAdmin('student');toast('Photo updated.');};
+  rd.onload=async()=>{DATA.student.photo=rd.result;saveActiveStudent();await saveData();renderAdmin('student');toast('Photo updated.');};
   rd.readAsDataURL(f);
 }
-async function clearPhoto(){DATA.student.photo='';await saveData();renderAdmin('student');toast('Photo removed.');}
+async function clearPhoto(){DATA.student.photo='';saveActiveStudent();await saveData();renderAdmin('student');toast('Photo removed.');}
 
 async function uploadLogo(inp){
   const f=inp.files[0]; if(!f)return;
@@ -1140,15 +1223,24 @@ async function uploadLogo(inp){
 async function clearLogo(){DATA.branding.logo='';await saveData();applyBranding();renderAdmin('branding');toast('Logo removed.');}
 
 function adLogins(){
-  return `<div class="page-head"><h2>Login & Passwords</h2><p>Only Student and Staff logins exist. Set the IDs and passwords here.</p></div>
+  if(!DATA.students.length) DATA.students=[{...DATA.student}];
+  const s=DATA.students[UI.adminStudentIndex]||DATA.student;
+  DATA.student={...s};
+  return `<div class="page-head"><h2>Login & Passwords</h2><p>Select a batch and student, then assign your own ID/password or auto-generate one.</p></div>
     <div class="grid cols-2">
-      <div class="card"><div class="ch">Student Login</div><div class="cb">
-        ${fieldInput('lg_sid','Student ID',DATA.student.studentId)}
-        ${fieldInput('lg_spw','Student Password',DATA.student.password)}
+      <div class="card"><div class="ch">Student ID & Password Assignment</div><div class="cb">
+        <div class="field-block"><label>Batch</label><select id="lg_batch" onchange="DATA.student.batch=this.value;saveActiveStudent();renderAdmin('logins')">${batchOptions(s.batch,false)}</select></div>
+        <div class="field-block"><label>Student</label><select onchange="UI.adminStudentIndex=+this.value;renderAdmin('logins')">
+          ${DATA.students.map((st,i)=>`<option value="${i}" ${i===UI.adminStudentIndex?'selected':''}>${esc(st.name||st.studentId||'New Student')} - ${esc(st.batch||'No Batch')}</option>`).join('')}
+        </select></div>
+        <div class="field-block"><label>Selected Student</label><div class="ro">${esc(s.name||'New Student')} ${s.mobile?`- ${esc(s.mobile)}`:''}</div></div>
+        ${fieldInput('lg_sid','Student ID (manual or auto)',s.studentId)}
+        ${fieldInput('lg_spw','Password (manual or auto)',s.password)}
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-          <button class="btn sm ghost" onclick="generateStudentLogin()">Generate New Student ID & Password</button>
+          <button class="btn sm ghost" onclick="generateStudentLogin()">Auto Generate ID & Password</button>
+          <button class="btn sm coral" onclick="saveLogins()">Assign ID & Password</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:8px">New credentials will be saved only after you click Save Logins.</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">You can type your own ID/password, or auto-generate and then assign it to the selected student.</div>
       </div></div>
       <div class="card"><div class="ch">Staff / Admin Login</div><div class="cb">
         ${fieldInput('lg_aid','Staff ID',DATA.staff.staffId)}
@@ -1156,10 +1248,17 @@ function adLogins(){
         ${fieldInput('lg_anm','Staff Name',DATA.staff.name)}
       </div></div>
     </div>
-    <div style="margin-top:16px"><button class="btn coral" onclick="saveLogins()">Save Logins</button></div>`;
+    <div style="margin-top:16px"><button class="btn coral" onclick="saveLogins()">Save All Login Details</button></div>`;
 }
 async function saveLogins(){
-  DATA.student.studentId=readVal('lg_sid');DATA.student.password=readVal('lg_spw');
+  const sid=readVal('lg_sid').trim();
+  const spw=readVal('lg_spw').trim();
+  if(!sid || !spw){toast('Student ID and password required.');return;}
+  const duplicate=DATA.students.some((s,i)=>i!==UI.adminStudentIndex && s.studentId===sid);
+  if(duplicate){toast('This Student ID is already assigned to another student.');return;}
+  DATA.student.studentId=sid;DATA.student.password=spw;
+  DATA.student.batch=readVal('lg_batch')||DATA.student.batch;
+  saveActiveStudent();
   DATA.staff.staffId=readVal('lg_aid');DATA.staff.password=readVal('lg_apw');DATA.staff.name=readVal('lg_anm');
   await saveData(); refreshLoginHint(); toast('Login details saved.');
 }
@@ -1170,7 +1269,7 @@ function collSection(title,desc,addLabel,onAdd,rows){
     <div class="section-actions"><div></div><button class="btn coral sm" onclick="${onAdd}">+ ${addLabel}</button></div>
     <div class="card"><div class="cb" style="padding:0">${rows}</div></div>`;
 }
-function actBtns(edit,del){return `<div class="row-acts"><button class="icon-btn" onclick="${edit}">✏️</button><button class="icon-btn del" onclick="${del}">🗑</button></div>`;}
+function actBtns(edit,del){return `<div class="row-acts"><button class="icon-btn" onclick="${edit}">Edit</button><button class="icon-btn del" onclick="${del}">Del</button></div>`;}
 
 /* COURSES */
 function adCourses(){
