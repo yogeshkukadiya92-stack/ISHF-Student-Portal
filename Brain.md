@@ -21,8 +21,15 @@ Coolify should deploy it as a Dockerfile-based app:
 - Build pack: Dockerfile
 - Port: `80`
 - Root URL `/` serves `ishf-portal.html`
+- Container/Service port: `80`
 
 If Coolify shows "Welcome to nginx!", it is serving the default nginx image instead of this app's web root. Redeploy after pulling the latest repo commit so `Dockerfile`, `nginx.conf`, `index.html`, and `ishf-portal.html` are included.
+
+Important SSL note:
+- This container serves plain HTTP on port `80`.
+- Coolify should handle HTTPS at the proxy/domain level.
+- The auto-generated `sslip.io` URL is safe for quick HTTP previews, but opening that generated URL with `https://` can show a certificate warning on phones if Coolify falls back to a self-signed cert.
+- For a trusted mobile HTTPS URL, add a real custom domain in Coolify using the full `https://your-domain.com` format and point its DNS `A` record to the server IP before redeploying.
 
 ## Demo Logins
 Student:
