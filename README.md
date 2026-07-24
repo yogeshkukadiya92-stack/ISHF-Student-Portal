@@ -1,11 +1,25 @@
 # ISHF Student Portal
 
-Static student portal frontend packaged for Docker/Coolify deployment.
+Student portal with shared server storage for Docker/Coolify deployment.
 
-## Local run
+The portal now saves admin changes on the server, not only in one browser. When staff generate a student ID/password and save it, students can use the same live URL from their own phone or computer.
+
+## Local Run
 
 ```powershell
-python -m http.server 4173 --bind 127.0.0.1
+npm start
+```
+
+Open:
+
+```text
+http://127.0.0.1/ishf-portal.html
+```
+
+If port 80 is already busy:
+
+```powershell
+$env:PORT=4173; npm start
 ```
 
 Open:
@@ -14,26 +28,47 @@ Open:
 http://127.0.0.1:4173/ishf-portal.html
 ```
 
-## Coolify deploy
+## Test
+
+```powershell
+npm test
+```
+
+## Coolify Deploy
 
 Use this repository as a Dockerfile-based application.
 
 - Build pack: `Dockerfile`
 - Internal port: `80`
-- Publish the app through Coolify's proxy
+- Health check: `/api/health`
+- Add persistent storage/volume for `/app/data`
 
-This repo does not manage SSL certificates inside the container. `nginx` serves plain HTTP and Coolify is expected to terminate HTTPS.
+The persistent volume is important. Without it, portal data can reset when the container is recreated.
 
-## Fix for phone certificate warning
+## First Login
 
-If a phone shows `Your connection is not private` / `NET::ERR_CERT_AUTHORITY_INVALID`, the problem is usually not the app code. It means Coolify is serving a self-signed fallback certificate for the public URL.
+Default staff login:
 
-Use one of these setups:
+```text
+Staff ID: admin
+Password: admin123
+```
 
-1. For quick testing, open the generated Coolify `sslip.io` URL with `http://`, not `https://`.
-2. For proper mobile HTTPS, add a real custom domain in Coolify as `https://your-domain.com`.
-3. Point that domain's DNS `A` record to your Coolify server IP.
-4. Make sure ports `80` and `443` are open on the server so Coolify can request a Let's Encrypt certificate.
-5. Redeploy the app after the domain is attached.
+After first login, change the staff password from `Login & Passwords`.
 
-If Coolify still shows the warning after DNS is correct, it is still using its self-signed fallback certificate and the fix is in Coolify's domain/SSL setup rather than this repository.
+## Why Student Login Was Failing On Other Phones
+
+Earlier, generated IDs/passwords were stored in the admin browser only. A student's phone loaded a fresh copy of the portal and did not have those saved credentials, so it showed `Invalid ID or password`.
+
+Now the portal reads and writes shared data through `/api/data`, so all users on the live URL see the same saved student records.
+
+## HTTPS / Certificate Warning
+
+This app serves HTTP inside the container. Coolify should handle HTTPS on the public URL.
+
+If a phone shows `Your connection is not private` / `NET::ERR_CERT_AUTHORITY_INVALID`, check Coolify domain and SSL:
+
+1. Add a real custom domain in Coolify, such as `https://your-domain.com`.
+2. Point the domain DNS `A` record to the Coolify server IP.
+3. Make sure ports `80` and `443` are open.
+4. Redeploy after the domain is attached.

@@ -1,11 +1,16 @@
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html /usr/share/nginx/html/index.html
-COPY ishf-portal.html /usr/share/nginx/html/ishf-portal.html
-COPY Brain.md /usr/share/nginx/html/Brain.md
+WORKDIR /app
+
+COPY package.json ./
+COPY server.js ./
+COPY index.html ./
+COPY ishf-portal.html ./
+COPY Brain.md ./
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/ishf-portal.html >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1/api/health >/dev/null || exit 1
+
+CMD ["node", "server.js"]

@@ -347,13 +347,48 @@ document.getElementById('yr').textContent=new Date().getFullYear();
 
 const HAS_STORE = (typeof window!=='undefined' && window.storage && typeof window.storage.get==='function');
 const HAS_LOCAL_STORAGE = (typeof window!=='undefined' && window.localStorage);
+let API_AVAILABLE=false;
 const _mem = {};
+async function apiGetData(){
+  try{
+    const res=await fetch('/api/data',{cache:'no-store'});
+    if(res.status===204){ API_AVAILABLE=true; return null; }
+    if(!res.ok) throw new Error('API unavailable');
+    API_AVAILABLE=true;
+    return await res.text();
+  }catch(e){
+    API_AVAILABLE=false;
+    return null;
+  }
+}
+async function apiSetData(v){
+  if(!API_AVAILABLE || SESSION.role!=='staff' || !SESSION.staffAuth) return false;
+  try{
+    const res=await fetch('/api/data',{
+      method:'PUT',
+      headers:{
+        'Content-Type':'application/json',
+        'X-Staff-ID':SESSION.staffAuth.id,
+        'X-Staff-Password':SESSION.staffAuth.password
+      },
+      body:v
+    });
+    return res.ok;
+  }catch(e){
+    return false;
+  }
+}
 async function storeGet(k){
+  if(k==='ishf_data'){
+    const serverData=await apiGetData();
+    if(serverData) return serverData;
+  }
   if(HAS_STORE){ try{const r=await window.storage.get(k); return r?r.value:null;}catch(e){return null;} }
   if(HAS_LOCAL_STORAGE){ try{return window.localStorage.getItem(k);}catch(e){} }
   return _mem[k]??null;
 }
 async function storeSet(k,v){
+  if(k==='ishf_data') await apiSetData(v);
   if(HAS_STORE){ try{await window.storage.set(k,v);}catch(e){} }
   if(HAS_LOCAL_STORAGE){ try{window.localStorage.setItem(k,v);}catch(e){} }
   _mem[k]=v; return true;
@@ -495,7 +530,7 @@ function emptyPortalData(data){
 }
 
 let DATA=null;
-let SESSION={role:null,studentIndex:-1}; // 'student' | 'staff'
+let SESSION={role:null,studentIndex:-1,staffAuth:null}; // 'student' | 'staff'
 let UI={loginRole:'student', course:null, courseDate:'', adminTab:'dashboard', adminStudentIndex:0, batchFilter:''};
 
 function shouldClearLegacyDemoData(data){
@@ -543,7 +578,7 @@ function doLogin(){
   err.textContent='';
   if(cap!==document.getElementById('captchaText').dataset.v){ err.textContent='Captcha does not match.'; newCaptcha(); return; }
   if(UI.loginRole==='staff'){
-    if(u===DATA.staff.staffId && p===DATA.staff.password){ enterApp('staff'); return; }
+    if(u===DATA.staff.staffId && p===DATA.staff.password){ SESSION.staffAuth={id:u,password:p}; enterApp('staff'); return; }
   }else{
     const idx=DATA.students.findIndex(s=>s.studentId===u && s.password===p);
     if(idx>=0){ DATA.student={...DATA.students[idx]}; SESSION.studentIndex=idx; enterApp('student'); return; }
@@ -562,6 +597,7 @@ function enterApp(role){
 }
 function logout(){
   SESSION.role=null;
+  SESSION.staffAuth=null;
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').classList.remove('hide');
   document.getElementById('loginPass').value='';
@@ -1260,7 +1296,9 @@ async function saveLogins(){
   DATA.student.batch=readVal('lg_batch')||DATA.student.batch;
   saveActiveStudent();
   DATA.staff.staffId=readVal('lg_aid');DATA.staff.password=readVal('lg_apw');DATA.staff.name=readVal('lg_anm');
-  await saveData(); refreshLoginHint(); toast('Login details saved.');
+  await saveData();
+  SESSION.staffAuth={id:DATA.staff.staffId,password:DATA.staff.password};
+  refreshLoginHint(); toast('Login details saved.');
 }
 
 /* ---- generic collection editor ---- */
