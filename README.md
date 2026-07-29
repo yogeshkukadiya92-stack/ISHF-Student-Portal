@@ -42,8 +42,11 @@ Use this repository as a Dockerfile-based application.
 - Internal port: `80`
 - Health check: `/api/health`
 - Add persistent storage/volume for `/app/data`
+- Optional environment variables: `PORTAL_ADMIN_ID` and `PORTAL_ADMIN_PASSWORD` for the first admin login before portal data exists.
 
 The persistent volume is important. Without it, portal data can reset when the container is recreated.
+
+Do not deploy this as a static Nginx/HTML-only site. Student passwords are shared through the Node server API (`/api/data`), so the Dockerfile app must be running for all staff and students to see the same records.
 
 ## First Login
 

@@ -7,6 +7,10 @@ const rootDir = __dirname;
 const dataDir = process.env.PORTAL_DATA_DIR || path.join(rootDir, 'data');
 const dataFile = path.join(dataDir, 'portal-data.json');
 const port = Number(process.env.PORT || 80);
+const defaultStaff = {
+  staffId: process.env.PORTAL_ADMIN_ID || 'admin',
+  password: process.env.PORTAL_ADMIN_PASSWORD || 'admin123'
+};
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -68,7 +72,7 @@ async function writePortalData(data) {
 }
 
 async function isAdminRequest(req, existingData) {
-  const staff = existingData && existingData.staff ? existingData.staff : { staffId: 'admin', password: 'admin123' };
+  const staff = existingData && existingData.staff ? existingData.staff : defaultStaff;
   return timingSafeEqualText(req.headers['x-staff-id'], staff.staffId)
     && timingSafeEqualText(req.headers['x-staff-password'], staff.password);
 }
