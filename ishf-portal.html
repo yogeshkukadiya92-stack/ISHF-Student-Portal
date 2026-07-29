@@ -364,7 +364,7 @@ async function apiGetData(){
   }
 }
 async function apiSetData(v){
-  if(!API_AVAILABLE || SESSION.role!=='staff' || !SESSION.staffAuth) {
+  if(!SESSION.staffAuth) {
     return {ok:false,error:'Live server is not connected. Open the portal from the public server URL, not a local file.'};
   }
   try{
@@ -395,7 +395,7 @@ async function storeGet(k){
   return _mem[k]??null;
 }
 async function storeSet(k,v){
-  if(k==='ishf_data' && SESSION.role==='staff'){
+  if(k==='ishf_data' && SESSION.staffAuth){
     const live=await apiSetData(v);
     if(!live.ok){
       LAST_SAVE_OK=false;
