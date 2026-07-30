@@ -71,6 +71,10 @@ async function writePortalData(data) {
   await fs.rename(tmp, dataFile);
 }
 
+async function ensureDataDir() {
+  await fs.mkdir(dataDir, { recursive: true });
+}
+
 async function isAdminRequest(req, existingData) {
   const staff = existingData && existingData.staff ? existingData.staff : defaultStaff;
   return timingSafeEqualText(req.headers['x-staff-id'], staff.staffId)
@@ -147,6 +151,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`ISHF Student Portal running on port ${port}`);
-});
+ensureDataDir()
+  .then(() => {
+    server.listen(port, '0.0.0.0', () => {
+      console.log(`ISHF Student Portal running on port ${port}`);
+      console.log(`Portal data directory: ${dataDir}`);
+    });
+  })
+  .catch(error => {
+    console.error('Unable to prepare portal data directory:', error);
+    process.exit(1);
+  });

@@ -46,6 +46,16 @@ Use this repository as a Dockerfile-based application.
 
 The persistent volume is important. Without it, portal data can reset when the container is recreated.
 
+Saved portal data lives in:
+
+```text
+/app/data/portal-data.json
+```
+
+When redeploying, keep the same persistent storage mounted at `/app/data`. Code changes can be redeployed safely after that; old saved data will stay unless you delete records from the admin panel or use Reset/Import.
+
+If a redeploy already made the server data blank, open the portal from the same admin browser that previously saved data and login as staff. The portal will reuse the browser backup and restore it to the live server automatically.
+
 Do not deploy this as a static Nginx/HTML-only site. Student passwords are shared through the Node server API (`/api/data`), so the Dockerfile app must be running for all staff and students to see the same records.
 
 ## First Login

@@ -350,16 +350,19 @@ const HAS_LOCAL_STORAGE = (typeof window!=='undefined' && window.localStorage);
 let API_AVAILABLE=false;
 let LAST_SAVE_OK=true;
 let LAST_SAVE_ERROR='';
+let SERVER_DATA_EMPTY=false;
 const _mem = {};
 async function apiGetData(){
   try{
     const res=await fetch('/api/data',{cache:'no-store'});
-    if(res.status===204){ API_AVAILABLE=true; return null; }
+    if(res.status===204){ API_AVAILABLE=true; SERVER_DATA_EMPTY=true; return null; }
     if(!res.ok) throw new Error('API unavailable');
     API_AVAILABLE=true;
+    SERVER_DATA_EMPTY=false;
     return await res.text();
   }catch(e){
     API_AVAILABLE=false;
+    SERVER_DATA_EMPTY=false;
     return null;
   }
 }
@@ -377,7 +380,7 @@ async function apiSetData(v){
       },
       body:v
     });
-    if(res.ok) return {ok:true};
+    if(res.ok){ SERVER_DATA_EMPTY=false; return {ok:true}; }
     if(res.status===401) return {ok:false,error:'Admin session expired or password changed. Please logout, login again, then save.'};
     return {ok:false,error:'Live server save failed. Please check the deployment and try again.'};
   }catch(e){
@@ -387,7 +390,7 @@ async function apiSetData(v){
 async function storeGet(k){
   if(k==='ishf_data'){
     const serverData=await apiGetData();
-    if(API_AVAILABLE) return serverData;
+    if(API_AVAILABLE && serverData) return serverData;
     if(serverData) return serverData;
   }
   if(HAS_STORE){ try{const r=await window.storage.get(k); return r?r.value:null;}catch(e){return null;} }
@@ -596,7 +599,12 @@ function doLogin(){
   err.textContent='';
   if(cap!==document.getElementById('captchaText').dataset.v){ err.textContent='Captcha does not match.'; newCaptcha(); return; }
   if(UI.loginRole==='staff'){
-    if(u===DATA.staff.staffId && p===DATA.staff.password){ SESSION.staffAuth={id:u,password:p}; enterApp('staff'); return; }
+    if(u===DATA.staff.staffId && p===DATA.staff.password){
+      SESSION.staffAuth={id:u,password:p};
+      enterApp('staff');
+      if(SERVER_DATA_EMPTY) saveData().then(ok=>{ if(ok){ SERVER_DATA_EMPTY=false; toast('Previous data restored on live server.'); } });
+      return;
+    }
   }else{
     const idx=DATA.students.findIndex(s=>s.studentId===u && s.password===p);
     if(idx>=0){ DATA.student={...DATA.students[idx]}; SESSION.studentIndex=idx; enterApp('student'); return; }
