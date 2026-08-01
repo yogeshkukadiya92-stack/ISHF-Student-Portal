@@ -705,7 +705,8 @@ function normalizeData(input){
     .filter(b=>{const k=b.name.toLowerCase(); if(seenBatch.has(k)) return false; seenBatch.add(k); return true;})
     .sort((a,b)=>a.name.localeCompare(b.name));
   if(data.students.length){
-    const active=Math.max(0,Math.min(SESSION.studentIndex>=0?SESSION.studentIndex:UI.adminStudentIndex||0,data.students.length-1));
+    const preferredIndex=SESSION.role==='student' && SESSION.studentIndex>=0 ? SESSION.studentIndex : UI.adminStudentIndex||0;
+    const active=Math.max(0,Math.min(preferredIndex,data.students.length-1));
     data.student={...data.students[active]};
   }
   data.branding.logo=safeImageSrc(data.branding.logo);
