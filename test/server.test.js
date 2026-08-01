@@ -9,6 +9,21 @@ const port = 4300 + Math.floor(Math.random() * 1000);
 let server;
 let dataDir;
 
+function startServer() {
+  server = spawn(process.execPath, ['server.js'], {
+    cwd: root,
+    env: { ...process.env, PORT: String(port), PORTAL_DATA_DIR: dataDir },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+}
+
+async function stopServer() {
+  if (!server) return;
+  server.kill();
+  await new Promise(resolve => server.once('exit', resolve));
+  server = null;
+}
+
 async function waitForHealth() {
   const started = Date.now();
   while (Date.now() - started < 10000) {
@@ -28,11 +43,7 @@ async function request(pathname, options) {
 
 (async () => {
   dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ishf-portal-test-'));
-  server = spawn(process.execPath, ['server.js'], {
-    cwd: root,
-    env: { ...process.env, PORT: String(port), PORTAL_DATA_DIR: dataDir },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+  startServer();
 
   await waitForHealth();
 
@@ -65,6 +76,16 @@ async function request(pathname, options) {
   assert.strictEqual(saved.students[0].studentId, 'STU100');
   assert.strictEqual(saved.students[0].password, 'Portal@Test1');
 
+  await stopServer();
+  startServer();
+  await waitForHealth();
+
+  res = await request('/api/data');
+  assert.strictEqual(res.status, 200);
+  const savedAfterRestart = await res.json();
+  assert.strictEqual(savedAfterRestart.students[0].studentId, 'STU100');
+  assert.strictEqual(savedAfterRestart.students[0].password, 'Portal@Test1');
+
   res = await request('/ishf-portal.html');
   assert.strictEqual(res.status, 200);
   assert.match(await res.text(), /ISHF Student Portal|Student Portal/);
@@ -76,6 +97,6 @@ async function request(pathname, options) {
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (server) server.kill();
+    await stopServer();
     if (dataDir) await fs.rm(dataDir, { recursive: true, force: true });
   });

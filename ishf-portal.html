@@ -550,21 +550,11 @@ let DATA=null;
 let SESSION={role:null,studentIndex:-1,staffAuth:null}; // 'student' | 'staff'
 let UI={loginRole:'student', course:null, courseDate:'', adminTab:'dashboard', adminStudentIndex:0, batchFilter:''};
 
-function shouldClearLegacyDemoData(data){
-  if(!data || !data.student) return false;
-  if(data.meta && data.meta.seedVersion==='empty-v1') return false;
-  return data.student.name==="Patil Jignesh Ganeshbhai"
-    || data.student.studentId==="251104569"
-    || (Array.isArray(data.courses) && data.courses.some(c=>c && c.code==="HFS-101"))
-    || (Array.isArray(data.news) && data.news.some(n=>n && n.title==="Sem 1 timetable released"));
-}
-
 async function loadData(){
   const raw=await storeGet('ishf_data');
   if(raw){ try{DATA=JSON.parse(raw);}catch(e){DATA=defaultData();} }
   else { DATA=defaultData(); await saveData(); }
   DATA=normalizeData(DATA);
-  if(shouldClearLegacyDemoData(DATA)) DATA=emptyPortalData(normalizeData(DATA));
   await saveData();
 }
 async function saveData(){
